@@ -1,32 +1,43 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Product } from './products.model';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Product } from './interface/product.interface';
 
 @Injectable()
 export class ProductsService {
-  private products: Product[] = [];
+  constructor(
+    @InjectModel('Product') private readonly productModel: Model<Product>,
+  ) {}
 
   /**
    * Add new product to the list
    * @param title - Product title
-   * @param description Product description
+   * @param desc Product description
    * @param price - Product price
    */
-  addProduct(title: string, description: string, price: number): string {
-    const prodId: string = Math.random().toString();
-    const newProduct = new Product(prodId, title, description, price);
+  async addProduct(
+    title: string,
+    desc: string,
+    price: number,
+  ): Promise<string> {
+    const newProduct = new this.productModel({
+      title,
+      description: desc,
+      price,
+    });
 
-    this.products.push(newProduct);
-
-    return prodId;
+    const result = await newProduct.save();
+    return result.id as string;
   }
 
   /**
    * Get all products
    * @returns List of products
    */
-  getProducts(): Product[] {
-    // Return copy from the products array
-    return [...this.products];
+  async getProducts(): Promise<Product[]> {
+    const allProducts = await this.productModel.find().exec();
+    // Transform products data
+    return allProducts;
   }
 
   /**
@@ -34,9 +45,9 @@ export class ProductsService {
    * @param prodId - The product id to return
    * @returns Product if found
    */
-  getSingleProduct(prodId: string): Product {
-    const product: Product = this.findProduct(prodId)[0];
-    return { ...product };
+  async getSingleProduct(prodId: string): Promise<Product> {
+    const product: Product = await this.findProduct(prodId);
+    return product;
   }
 
   /**
@@ -44,46 +55,46 @@ export class ProductsService {
    * @param prodId The product id to update
    * @param prodData The new product data
    */
-  updateProduct(
+  async updateProduct(
     prodId: string,
-    prodData: { title: string; desc: string; price: number },
-  ) {
-    const [product, productIndex] = this.findProduct(prodId);
-    const updatedProduct = { ...product };
+    prodData: { title: string; description: string; price: number },
+  ): Promise<Product> {
+    const product: Product = await this.findProduct(prodId);
 
-    if (prodData.title) updatedProduct.title = prodData.title;
-    if (prodData.desc) updatedProduct.desc = prodData.desc;
-    if (prodData.price && prodData.price > 0)
-      updatedProduct.price = prodData.price;
+    if (prodData.title) product.title = prodData.title;
+    if (prodData.description) product.description = prodData.description;
+    if (prodData.price && prodData.price > 0) product.price = prodData.price;
 
-    this.products[productIndex] = updatedProduct;
+    //* Save the product to database
+    await product.save();
+
+    return product;
   }
 
   /**
    * Delete specified product with given id
    * @param prodId The product id
    */
-  deleteProduct(prodId: string) {
-    const productIndex: number = this.findProduct(prodId)[1];
-    this.products.splice(productIndex, 1);
+  async deleteProduct(prodId: string): Promise<Product> {
+    return (await (await this.findProduct(prodId)).delete()) as Product;
   }
 
   /**
-   * Search for product and return it along with its index
+   * Search for product and return it
    * @param prodId - The product id to find it.
-   * @returns tuple of [product and index]
+   * @returns Promise resolved with product
    */
-  private findProduct(
-    prodId: string,
-  ): [product: Product, productIndex: number] {
-    const productIndex: number = this.products.findIndex(
-      (p) => p.id === prodId,
-    );
-    const product: Product = this.products[productIndex];
+  private async findProduct(prodId: string): Promise<Product> {
+    try {
+      const product: Product = await this.productModel.findById(prodId);
 
-    if (!product) {
+      if (!product) {
+        throw new Error();
+      }
+
+      return product;
+    } catch (error) {
       throw new NotFoundException('Product not found ❌💔');
     }
-    return [product, productIndex];
   }
 }
