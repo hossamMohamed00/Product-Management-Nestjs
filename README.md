@@ -48,6 +48,9 @@ $ npm run start:prod
 ## Endpoints
 
 ```bash
+# Open API documentaion (Swagger)
+$ http://localhost:3000/swagger/api-doc
+
 # Get all products
 $ (GET) http://localhost:3000/products
 
